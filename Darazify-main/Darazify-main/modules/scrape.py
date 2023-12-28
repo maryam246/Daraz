@@ -27,50 +27,55 @@ class FindPercent:
         percent = abs(percent - 100)
 
         return int(percent)
-
-
 class OutPutFile():
     def __init__(self, titles, links, act_prices, prices_after_dis):
-        with open('output.txt', 'a+') as f:
-            for (titles, links, act_prices, prices_after_dis) in zip(titles, links, act_prices, prices_after_dis) :
-                f.write("[TITLE] ==> {0}\t||\t[ACTUAL PRICE] ==> {1}\t||\t[PRICE AFTER DISCOUNT] ==> {2}\t||\t[LINK] ==> {3}\n\n".format(titles, act_prices, prices_after_dis, links) )
+        with open('output.txt', 'a+', encoding='utf-8') as f:
+            for (titles, links, act_prices, prices_after_dis) in zip(titles, links, act_prices, prices_after_dis):
+                f.write("[TITLE] ==> {0}\t||\t[ACTUAL PRICE] ==> {1}\t||\t[PRICE AFTER DISCOUNT] ==> {2}\t||\t[LINK] ==> {3}\n\n".format(titles, act_prices, prices_after_dis, links))
 class Daraz(FindPercent):
-    def __init__(self, url, require_percent, browser):
+    def __init__(self, url, require_percent, browser=None):
         self.url = url
         self.require_percent = require_percent
-        self.browser = browser  # Store the browser instance
+        self.browser = browser
         self.titles = []
         self.links = []
         self.act_prices = []
         self.prices_after_dis = []
         self.exit = 0
 
-        if self.browser:  # Check if browser is not None
-            self.driver = self.browser
-            self.driver.maximize_window()  # Maximize the window
-        else:
-            self.browser_handler()
-
         try:
-            self.driver.get(url)
-        except:
-            print("Oops! Something went wrong. Check your internet connection.")
-            if not self.browser:  # Only quit if it's not the passed browser instance
-                self.driver.quit()
-            exit()
+            if self.browser:  # Check if browser is not None
+                self.driver = self.browser
+            else:
+                self.browser_handler()
+                options = Options()
+                options.headless = False  # Set it to True if you don't want to see the browser
+                self.driver = webdriver.Firefox(options=options)
 
-        try:
-            not_found = self.driver.find_element_by_xpath('//*[@class="box--XEzLA"]/div[1]').text
-            if not self.browser:
-                self.driver.quit()
-            self.exit = 1
-        except:
-            self.div_len = self.driver.find_elements_by_xpath('//*[@class="box--ujueT"]/div')
+            # Add implicit wait after initializing the driver
+            self.driver.implicitly_wait(10)  # Adjust the time as needed
 
-        if self.exit == 1:
-            exit()
-        self.get_details()
+            try:
+                self.driver.get(url)
+            except Exception as e:
+                print(f"Oops! Something went wrong: {e}")
+                if not self.browser:  # Only quit if it's not the passed browser instance
+                    self.driver.quit()
+                exit()
 
+            try:
+                not_found = self.driver.find_element_by_xpath('//*[@class="box--XEzLA"]/div[1]').text
+                if not self.browser:
+                    self.driver.quit()
+                self.exit = 1
+            except Exception as e:
+                self.div_len = self.driver.find_elements_by_xpath('//*[@class="box--ujueT"]/div')
+
+            if self.exit == 1:
+                exit()
+            self.get_details()
+        except Exception as e:
+            print(f"Error: {e}")
     def get_details(self):
         for i in range(1, len(self.div_len)):
             try:
@@ -97,6 +102,8 @@ class Daraz(FindPercent):
                     else:
                         self.title = self.title[0:60]+'.....'
 
+                    xyz = ''
+
                     if len(self.actual_price) < 12:
                         temp = 12 - len(self.actual_price)
                         xyz = ' '*temp
@@ -118,12 +125,11 @@ class Daraz(FindPercent):
 
             except:
                 pass
+
     def __del__(self):
         if hasattr(self, 'titles'):  # Check if titles attribute exists
             print(f'{colors.bcolors.RED}{len(self.titles)} products found in this page{colors.bcolors.ENDC}')
-        if self.browser == 1:
-            # Do not quit the browser here; keep it open for multiple pages
-            pass
+        if not self.browser:
+            self.driver.quit()
         print(f'{colors.bcolors.RED}{len(self.titles)} products found in this page{colors.bcolors.ENDC}')
-        self.driver.quit()
         OutPutFile(self.titles, self.links, self.act_prices, self.prices_after_dis)
