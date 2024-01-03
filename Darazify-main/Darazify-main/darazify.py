@@ -41,5 +41,5 @@ while True:
 
     # Pass the browser instance to the Daraz class
     daraz_instance = Daraz(url, percent, browser)
-    i += 
+    i += 1
 
