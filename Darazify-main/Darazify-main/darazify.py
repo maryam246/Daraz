@@ -1,45 +1,59 @@
-from modules import colors
 from selenium import webdriver
+from webdriver_manager.firefox import GeckoDriverManager
 from selenium.webdriver.firefox.options import Options
-from modules import options
+from colorama import init, Fore, Style  # Import colorama
 from modules import clrscr
 from modules import banner
-from modules.scrape import Daraz
+from modules import options
+from modules.scrape import DarazScraper
+
+# Initialize colorama
+init()
 
 clrscr.clear_screen()
 banner.Banner()
 
 link = options.get_link()
-percent = int(input(f"{colors.bcolors.LOGGING}Enter Minimum Discount Percentage [1-100] : {colors.bcolors.ENDC}"))
+percent = int(input(f"{Fore.GREEN}Enter Minimum Discount Percentage [1-100]: {Style.RESET_ALL}"))
 bswr = input(
-    f"{colors.bcolors.OKGREEN}Do you want to search in browser{colors.bcolors.ENDC} {colors.bcolors.NOTICE}(It can take more time){colors.bcolors.ENDC} [Y/n] : ")
+    f"{Fore.YELLOW}Do you want to search in browser (It can take more time) [Y/n]: {Style.RESET_ALL}")
 
-# Provide a default value for browser
 browser = None
 
 if bswr.lower() == "y":
     options = Options()
-    options.headless = False  # Set it to True if you don't want to see the browser
-    browser = webdriver.Firefox(options=options)
+    options.headless = False
+
+    # Use webdriver_manager to automatically download geckodriver
+    browser = webdriver.Firefox(executable_path=GeckoDriverManager().install(), options=options)
     browser.minimize_window()
 elif bswr.lower() != "n":
-    print(f'{colors.bcolors.RED}Invalid input. Try again.{colors.bcolors.ENDC}')
+    print(f'{Fore.RED}Invalid input. Try again.{Style.RESET_ALL}')
     exit()
+
+# Rest of the code remains unchanged...
+
 
 clrscr.clear_screen()
 open('output.txt', 'w').close()
 i = 1
 
+last_page_css_selector = ".title--sUZjQ"  # Update this with the actual CSS selector for the last page
+
 while True:
     url = link + str(i)
     print("<=================================================================================>".center(167))
     print(
-        f'{colors.bcolors.RED}{[i]}{colors.bcolors.ENDC} Trying on --> {colors.bcolors.HEADER}{url}{colors.bcolors.ENDC}'.center(
-            185))
+        f'{Fore.RED}[{i}]{Style.RESET_ALL} Trying on --> {Fore.BLUE}{url}{Style.RESET_ALL}'.center(185))
     print("<=================================================================================>".center(167))
     print('\n')
 
-    # Pass the browser instance to the Daraz class
-    daraz_instance = Daraz(url, percent, browser)
+    daraz_scraper = DarazScraper(browser)
+    if not daraz_scraper.scrape_product_data(url, percent, last_page_css_selector):
+        break  # Stop the loop if the last page is reached
+
     i += 1
 
+# Close the browser after the loop
+if browser is not None:
+    browser.quit()
