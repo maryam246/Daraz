@@ -1,135 +1,88 @@
-from modules import colors
-from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-class FindPercent:
-    def get_percent(self, actual_price, discount_price):
-        actual_price = actual_price[3:]
-        if ',' in actual_price:
-            actual_price = actual_price.replace(',', '')
-        actual_price = int(actual_price)
+from selenium.common.exceptions import WebDriverException, NoSuchElementException
+from selenium.webdriver.common.keys import Keys
+import datetime
+from colorama import Fore, Style  # Import colorama
 
-        discount_price = discount_price[3:]
-        if ',' in discount_price:
-            discount_price = discount_price.replace(',', '')
-        discount_price = int(discount_price)
-
-        if actual_price < discount_price:
-            percent = (actual_price / discount_price) * 100
-
-        elif actual_price > discount_price:
-            percent = (discount_price / actual_price) * 100
-
-        else:
-            percent = actual_price
-
-        percent = abs(percent - 100)
-
-        return int(percent)
-
-class OutPutFile:
-    def __init__(self, titles, links, act_prices, prices_after_dis):
-        with open('output.txt', 'a+', encoding='utf-8') as f:
-            for (titles, links, act_prices, prices_after_dis) in zip(titles, links, act_prices, prices_after_dis):
-                f.write("[TITLE] ==> {0}\t||\t[ACTUAL PRICE] ==> {1}\t||\t[PRICE AFTER DISCOUNT] ==> {2}\t||\t[LINK] ==> {3}\n\n".format(titles, act_prices, prices_after_dis, links))
-
-class Daraz(FindPercent):
-    def __init__(self, url, require_percent, browser=None):
-        self.url = url
-        self.require_percent = require_percent
+class DarazScraper:
+    def __init__(self, browser):
         self.browser = browser
-        self.titles = []
-        self.links = []
-        self.act_prices = []
-        self.prices_after_dis = []
-        self.exit = 0
+        self.browser.implicitly_wait(10)  # Set implicit wait time to 10 seconds
 
+    def scrape_product_data(self, url, min_discount_percentage, last_page_css_selector):
         try:
-            if self.browser:  # Check if browser is not None
-                self.driver = self.browser
-            else:
-                self.browser_handler()
-                options = Options()
-                options.headless = False  # Set it to True if you don't want to see the browser
-                self.driver = webdriver.Firefox(options=options)
+            self.browser.get(url)
 
-            # Add implicit wait after initializing the driver
-            self.driver.implicitly_wait(20)  # Increased timeout to 20 seconds
+            products_found = 0
+            product_count = 1
 
-            try:
-                self.driver.get(url)
-            except Exception as e:
-                print(f"Oops! Something went wrong: {e}")
-                if not self.browser:  # Only quit if it's not the passed browser instance
-                    self.driver.quit()
-                exit()
+            while True:
+                title_css_selector = f"div.gridItem--Yd0sa:nth-child({product_count}) > div:nth-child(1) > a:nth-child(1) > div:nth-child(2) > div:nth-child(1)"
+                link_css_selector = f"div.gridItem--Yd0sa:nth-child({product_count}) > div:nth-child(1) > a:nth-child(1)"
+                actual_price_css_selector = f"div.gridItem--Yd0sa:nth-child({product_count}) > div:nth-child(1) > a:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(2) > del:nth-child(1)"
+                discount_price_css_selector = f"div.gridItem--Yd0sa:nth-child({product_count}) > div:nth-child(1) > a:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(1) > span:nth-child(2)"
 
-            try:
-                # Wait for the presence of an element before proceeding
-                WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH, '//*[@class="box--XEzLA"]/div[1]')))
-                self.exit = 1
-            except Exception as e:
-                self.div_len = self.driver.find_elements(By.XPATH, '//*[@class="box--ujueT"]/div')
-
-            if self.exit == 1:
-                exit()
-            self.get_details()
-        except Exception as e:
-            print(f"Error: {e}")
-
-    def get_details(self):
-        for i in range(1, len(self.div_len)):
-            try:
-                title_name = self.driver.find_element(By.XPATH, '//*[@class="box--ujueT"]/div[' + str(i) + ']/div/div/div[2]/div[2]/a')
-                self.title = title_name.get_attribute('title')
-
-                target_link = self.driver.find_element(By.XPATH, '//*[@class="box--ujueT"]/div[' + str(i) + ']/div/div/div[2]/div[2]/a')
-                self.link = target_link.get_attribute('href')
-
-                self.discount_price = self.driver.find_element(By.XPATH, '//*[@class="box--ujueT"]/div[' + str(i) + ']/div/div/div[2]/div[3]/span').text
                 try:
-                    self.actual_price = self.driver.find_element(By.XPATH, '//*[@class="box--ujueT"]/div[' + str(i) + ']/div/div/div[2]/div[4]/span[1]/del').text
-                    percent = self.get_percent(self.actual_price, self.discount_price)
+                    title_element = self.browser.find_element(By.CSS_SELECTOR, title_css_selector)
+                    link_element = self.browser.find_element(By.CSS_SELECTOR, link_css_selector)
+                    actual_price_element = self.browser.find_element(By.CSS_SELECTOR, actual_price_css_selector)
+                    discount_price_element = self.browser.find_element(By.CSS_SELECTOR, discount_price_css_selector)
 
-                except:
-                    continue
+                    title_text = title_element.text
+                    link_text = link_element.get_attribute("href")
+                    actual_price_text = actual_price_element.text
+                    discount_price_text = discount_price_element.text
+                    actual_price_value = float(actual_price_text.replace("Rs. ", "").replace(",", ""))
+                    discount_price_value = float(discount_price_text.replace("Rs. ", "").replace(",", ""))
+                    discount_percentage = int(((actual_price_value - discount_price_value) / actual_price_value) * 100)
 
-                if percent >= self.require_percent:
-                    if len(self.title) < 65:
-                        temp = str(self.title)
-                        self.title = (temp + '.').ljust(65)
-                    else:
-                        self.title = self.title[0:60] + '.....'
+                    current_datetime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                    xyz = ''
+                    if discount_percentage >= min_discount_percentage:
+                        # Colorize the print statements
+                        print(f"{Fore.GREEN}[DATETIME] {current_datetime}{Style.RESET_ALL}")
+                        print(f"{Fore.CYAN}[TITLE] {title_text}{Style.RESET_ALL}")
+                        print(f"{Fore.YELLOW}[URL] {link_text}{Style.RESET_ALL}")
+                        print(f"{Fore.BLUE}[Actual Price] {actual_price_text}{Style.RESET_ALL}")
+                        print(f"{Fore.RED}[Discount Price] Rs. {discount_price_text}{Style.RESET_ALL}")
+                        print(f"{Fore.MAGENTA}[Discount Percentage] {discount_percentage}%{Style.RESET_ALL}\n")
 
-                    if len(self.actual_price) < 12:
-                        temp = 12 - len(self.actual_price)
-                        xyz = ' ' * temp
-                        self.actual_price = str(self.actual_price) + str(xyz)
+                        with open('output.txt', 'a', encoding='utf-8') as fetch_data_file:
+                            # Colorize the text in the output file
+                            fetch_data_file.write(
+                                f"[DATETIME] {current_datetime}\n"
+                                f"[TITLE] {title_text}\n"
+                                f"[URL] {link_text}\n"
+                                f"[Actual Price] {actual_price_text}\n"
+                                f"[Discount Price] Rs. {discount_price_text}\n"
+                                f"[Discount Percentage] {discount_percentage}%\n\n"
+                            )
 
-                    if len(self.discount_price) < 12:
-                        temp = 12 - len(self.discount_price)
-                        temp = ' ' * temp
-                        self.discount_price = str(self.discount_price) + str(xyz)
+                        products_found += 1
 
-                    print(f'{colors.bcolors.NOTICE}[TITLE]{colors.bcolors.ENDC} {self.title} {colors.bcolors.OKGREEN}[ACTUAL PRICE]{colors.bcolors.ENDC} {self.actual_price} {colors.bcolors.RED}[PRICE AFTER DISCOUNT]{colors.bcolors.ENDC} {self.discount_price}')
-                    print(f'{colors.bcolors.OKBLUE}[LINK]{colors.bcolors.ENDC} {self.link}')
-                    print("--------------------------------------------------------------------------------------------------------------------------------------->")
+                    product_count += 1
+                except Exception as e:
+                    break
 
-                    self.titles.append(self.title)
-                    self.links.append(self.link)
-                    self.act_prices.append(self.actual_price)
-                    self.prices_after_dis.append(self.discount_price)
+            # Check if the last page CSS selector is present
+            if self.is_last_page(last_page_css_selector):
+                print(f"{Fore.YELLOW}0 Product found on this Last page.{Style.RESET_ALL}")
+                return False
 
-            except:
-                pass
+            # Scroll down to load more products
+            self.browser.find_element(By.TAG_NAME, 'body').send_keys(Keys.END)
 
-    def __del__(self):
-        if hasattr(self, 'titles'):  # Check if titles attribute exists
-            print(f'{colors.bcolors.RED}{len(self.titles)} products found in this page{colors.bcolors.ENDC}')
-        if not self.browser:
-            self.driver.quit()
-        OutPutFile(self.titles, self.links, self.act_prices, self.prices_after_dis)
+            print(f"{products_found} products found on this page.")
+
+        except WebDriverException as wde:
+            print(f"{Fore.RED}WebDriverException: {wde}{Style.RESET_ALL}")
+
+        # Continue the loop
+        return True
+
+    def is_last_page(self, last_page_css_selector):
+        try:
+            # Check if the last page CSS selector is present on the current page
+            return self.browser.find_element(By.CSS_SELECTOR, last_page_css_selector) is not None
+        except NoSuchElementException:
+            return False
